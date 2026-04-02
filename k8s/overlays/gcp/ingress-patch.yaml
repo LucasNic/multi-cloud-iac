@@ -1,0 +1,8 @@
+# GCP GKE uses GCE Ingress (native GCP load balancer)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-healthz
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.allow-http: "false"

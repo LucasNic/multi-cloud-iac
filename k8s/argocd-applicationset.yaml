@@ -1,0 +1,69 @@
+###############################################################################
+# ArgoCD ApplicationSet — Multi-Cluster GitOps
+#
+# Deploys the same application to BOTH clusters from a single Git repo.
+# Git is the source of truth. No manual kubectl apply, ever.
+#
+# Pattern: ApplicationSet with cluster generator
+# - OKE cluster (OCI): uses k8s/overlays/oci  — PRIMARY
+# - GKE cluster (GCP): uses k8s/overlays/gcp  — FAILOVER (passive)
+#
+# Both clusters always run the same version, ensuring failover readiness.
+# ArgoCD surfaces sync drift before the Cloudflare Worker detects it.
+###############################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: api
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: oke-primary
+            url: https://OKE_CLUSTER_ENDPOINT
+            overlay: oci
+            role: primary
+          - cluster: gke-failover
+            url: https://GKE_CLUSTER_ENDPOINT
+            overlay: gcp
+            role: failover
+
+  template:
+    metadata:
+      name: "api-{{cluster}}"
+      labels:
+        app: api
+        cluster-role: "{{role}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/lucasnicoloso/multi-cloud-portfolio.git
+        targetRevision: main
+        path: "k8s/overlays/{{overlay}}"
+      destination:
+        server: "{{url}}"
+        namespace: app
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+          - CreateNamespace=true
+          - PruneLast=true
+          - ServerSideApply=true
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+      # ArgoCD tracks deployment health independently of Cloudflare Workers.
+      # If a deployment degrades, ArgoCD surfaces it immediately — before the
+      # 1-minute Cloudflare Worker cron even fires.
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas  # Managed per-overlay (OCI: 2, GCP: 1)

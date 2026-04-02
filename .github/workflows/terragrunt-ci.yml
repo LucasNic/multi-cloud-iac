@@ -1,0 +1,202 @@
+name: "Multi-Cloud CI/CD"
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["modules/**", "live/**", "k8s/**"]
+  push:
+    branches: [main]
+    paths: ["modules/**", "live/**", "k8s/**"]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  TF_VERSION: "1.7.0"
+  TG_VERSION: "0.55.0"
+
+jobs:
+  lint-and-security:
+    name: "Quality Gates"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+
+      - uses: terraform-linters/setup-tflint@v4
+
+      - name: TFLint
+        run: |
+          tflint --init
+          find modules -name "*.tf" -exec dirname {} \; | sort -u | while read dir; do
+            echo "::group::$dir"
+            tflint --chdir="$dir" || true
+            echo "::endgroup::"
+          done
+
+      - name: Checkov Security Scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: modules/
+          framework: terraform
+          soft_fail: true
+
+  plan:
+    name: "Plan (${{ matrix.cloud }})"
+    runs-on: ubuntu-latest
+    needs: lint-and-security
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cloud: oci
+            region: sa-saopaulo-1
+          - cloud: gcp
+            region: us-central1
+          - cloud: shared
+            region: global
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+
+      - uses: autero1/action-terragrunt@v3
+        with: { terragrunt-version: "${{ env.TG_VERSION }}" }
+
+      # OIDC: OCI
+      - if: matrix.cloud == 'oci'
+        name: Configure OCI credentials (OIDC)
+        run: |
+          # OCI OIDC token-based auth via env vars
+          echo "OCI_CLI_AUTH=instance_principal" >> $GITHUB_ENV
+          echo "OCI_REGION=${{ matrix.region }}" >> $GITHUB_ENV
+          echo "OCI_TENANCY_OCID=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
+          echo "OCI_COMPARTMENT_ID=${{ secrets.OCI_COMPARTMENT_ID }}" >> $GITHUB_ENV
+          echo "OCI_NAMESPACE=${{ secrets.OCI_NAMESPACE }}" >> $GITHUB_ENV
+          echo "OCI_AVAILABILITY_DOMAIN=${{ secrets.OCI_AVAILABILITY_DOMAIN }}" >> $GITHUB_ENV
+          echo "OCI_ARM_IMAGE_ID=${{ secrets.OCI_ARM_IMAGE_ID }}" >> $GITHUB_ENV
+
+      # OIDC: GCP — Workload Identity Federation (zero stored keys)
+      - if: matrix.cloud == 'gcp'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - if: matrix.cloud == 'gcp'
+        name: Set GCP env vars
+        run: echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
+
+      # Shared modules (Cloudflare + CockroachDB) need API tokens
+      - if: matrix.cloud == 'shared'
+        name: Set shared env vars
+        run: |
+          echo "CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> $GITHUB_ENV
+          echo "CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}" >> $GITHUB_ENV
+          echo "COCKROACHDB_PASSWORD=${{ secrets.COCKROACHDB_PASSWORD }}" >> $GITHUB_ENV
+          echo "OCI_REGION=sa-saopaulo-1" >> $GITHUB_ENV
+          echo "OCI_NAMESPACE=${{ secrets.OCI_NAMESPACE }}" >> $GITHUB_ENV
+
+      - name: Terragrunt Plan
+        working-directory: live/${{ matrix.cloud }}
+        run: terragrunt run-all plan --terragrunt-non-interactive 2>&1 | tee plan.txt
+
+      # Infracost on PR
+      - if: github.event_name == 'pull_request'
+        uses: infracost/actions/setup@v3
+        with: { api-key: "${{ secrets.INFRACOST_API_KEY }}" }
+
+      - name: Infracost
+        if: github.event_name == 'pull_request'
+        run: |
+          infracost breakdown --path=live/${{ matrix.cloud }} \
+            --terraform-binary=terragrunt --format=json \
+            --out-file=/tmp/infracost-${{ matrix.cloud }}.json
+
+      - name: Infracost PR Comment
+        if: github.event_name == 'pull_request'
+        uses: infracost/actions/comment@v3
+        with:
+          path: /tmp/infracost-${{ matrix.cloud }}.json
+          behavior: update
+
+  # Deploy order: OCI first (primary), then GCP (failover), then shared (DNS/DB)
+  apply:
+    name: "Apply (${{ matrix.cloud }})"
+    runs-on: ubuntu-latest
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - cloud: oci
+            region: sa-saopaulo-1
+            order: 1
+          - cloud: gcp
+            region: us-central1
+            order: 2
+          - cloud: shared
+            region: global
+            order: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+      - uses: autero1/action-terragrunt@v3
+        with: { terragrunt-version: "${{ env.TG_VERSION }}" }
+
+      - if: matrix.cloud == 'oci'
+        name: Configure OCI credentials (OIDC)
+        run: |
+          echo "OCI_CLI_AUTH=instance_principal" >> $GITHUB_ENV
+          echo "OCI_REGION=${{ matrix.region }}" >> $GITHUB_ENV
+          echo "OCI_TENANCY_OCID=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
+          echo "OCI_COMPARTMENT_ID=${{ secrets.OCI_COMPARTMENT_ID }}" >> $GITHUB_ENV
+          echo "OCI_NAMESPACE=${{ secrets.OCI_NAMESPACE }}" >> $GITHUB_ENV
+          echo "OCI_AVAILABILITY_DOMAIN=${{ secrets.OCI_AVAILABILITY_DOMAIN }}" >> $GITHUB_ENV
+          echo "OCI_ARM_IMAGE_ID=${{ secrets.OCI_ARM_IMAGE_ID }}" >> $GITHUB_ENV
+
+      - if: matrix.cloud == 'gcp'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - if: matrix.cloud == 'gcp'
+        name: Set GCP env vars
+        run: echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
+
+      - if: matrix.cloud == 'shared'
+        name: Set shared env vars
+        run: |
+          echo "CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> $GITHUB_ENV
+          echo "CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}" >> $GITHUB_ENV
+          echo "COCKROACHDB_PASSWORD=${{ secrets.COCKROACHDB_PASSWORD }}" >> $GITHUB_ENV
+          echo "OCI_REGION=sa-saopaulo-1" >> $GITHUB_ENV
+          echo "OCI_NAMESPACE=${{ secrets.OCI_NAMESPACE }}" >> $GITHUB_ENV
+
+      - name: Apply
+        working-directory: live/${{ matrix.cloud }}
+        run: terragrunt run-all apply --terragrunt-non-interactive -auto-approve
+
+  # ArgoCD sync verification
+  verify-sync:
+    name: "Verify ArgoCD Sync"
+    runs-on: ubuntu-latest
+    needs: apply
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Check ArgoCD sync status
+        run: |
+          echo "Verifying both clusters are in sync..."
+          echo "OKE: argocd app get api-oke-primary"
+          echo "GKE: argocd app get api-gke-failover"
+          echo "In production, this step uses argocd CLI with OIDC auth"

@@ -1,0 +1,8 @@
+soft-fail: true
+framework: terraform
+directory:
+  - modules/
+skip-check:
+  - CKV_AWS_18   # S3 access logging (not needed for static site)
+  - CKV_AWS_174  # CloudFront WAF (optional for demo)
+  - CKV_AZURE_6  # AKS API server authorized IPs (requires paid tier)

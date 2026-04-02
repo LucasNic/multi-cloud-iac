@@ -1,0 +1,142 @@
+###############################################################################
+# Base Kubernetes manifests (Kustomize)
+#
+# These are deployed to BOTH clusters via ArgoCD.
+# Overlays in k8s/overlays/{aws,azure} patch cloud-specific values.
+###############################################################################
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    app: api
+    part-of: multicloud-portfolio
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: api
+      containers:
+        - name: api
+          image: PLACEHOLDER_REGISTRY/api:latest
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: url
+            - name: CLUSTER_ROLE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['cluster-role']
+          # ---------------------------------------------------------------
+          # Health Endpoints — CRITICAL for Cloudflare Worker failover
+          #
+          # /healthz  → Cloudflare Worker health check target (external)
+          # /readyz   → Kubernetes readiness (internal)
+          # /livez    → Kubernetes liveness (internal)
+          #
+          # If /healthz returns non-200, the Cloudflare Worker (cron: 1min)
+          # detects the failure. After 3 consecutive failures, the Worker
+          # updates the DNS A record to point to the GKE failover cluster.
+          # ---------------------------------------------------------------
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 2
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  labels:
+    app: api
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+  selector:
+    app: api
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api
+  annotations:
+    # AWS: IRSA annotation (patched in overlay)
+    # Azure: Workload Identity annotation (patched in overlay)
+    iam-role: "placeholder"
+---
+# External-facing health endpoint for Cloudflare Worker health checks
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-healthz
+  annotations:
+    # Patched per-cloud in overlays (oci: nginx, gcp: gce)
+    kubernetes.io/ingress.class: "placeholder"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: api
+                port:
+                  name: http

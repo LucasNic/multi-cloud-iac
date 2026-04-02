@@ -1,0 +1,7 @@
+# GKE failover cluster runs 1 replica (passive — saves cost on preemptible node)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
