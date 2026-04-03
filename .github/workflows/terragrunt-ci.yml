@@ -71,14 +71,19 @@ jobs:
       - uses: autero1/action-terragrunt@v3
         with: { terragrunt-version: "${{ env.TG_VERSION }}" }
 
-      # OCI: API key auth via env vars (Terraform OCI provider reads these directly)
+      # GCP auth — needed for all jobs (GCS backend)
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      # OCI credentials
       - if: matrix.cloud == 'oci'
         name: Configure OCI credentials
         run: |
           mkdir -p ~/.oci
           echo "${{ secrets.OCI_PRIVATE_KEY_B64 }}" | base64 -d > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
-          echo "TF_VAR_tenancy_ocid=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
           echo "OCI_REGION=${{ matrix.region }}" >> $GITHUB_ENV
           echo "OCI_TENANCY_OCID=${{ secrets.OCI_TENANCY_OCID }}" >> $GITHUB_ENV
           echo "OCI_COMPARTMENT_ID=${{ secrets.OCI_COMPARTMENT_ID }}" >> $GITHUB_ENV
@@ -94,18 +99,10 @@ jobs:
           key_file=/home/runner/.oci/oci_api_key.pem
           EOF
 
-      # OIDC: GCP — Workload Identity Federation (zero stored keys)
-      - if: matrix.cloud == 'gcp'
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
-
       - if: matrix.cloud == 'gcp'
         name: Set GCP env vars
         run: echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
 
-      # Shared modules (Cloudflare + CockroachDB) need API tokens
       - if: matrix.cloud == 'shared'
         name: Set shared env vars
         run: |
@@ -118,7 +115,6 @@ jobs:
       - name: Terragrunt Plan
         working-directory: live/${{ matrix.cloud }}
         run: terragrunt run-all plan --terragrunt-non-interactive 2>&1 | tee plan.txt
-
 
   # Deploy order: OCI first (primary), then GCP (failover), then shared (DNS/DB)
   apply:
@@ -143,10 +139,18 @@ jobs:
             order: 3
     steps:
       - uses: actions/checkout@v4
+
       - uses: hashicorp/setup-terraform@v3
         with: { terraform_version: "${{ env.TF_VERSION }}" }
+
       - uses: autero1/action-terragrunt@v3
         with: { terragrunt-version: "${{ env.TG_VERSION }}" }
+
+      # GCP auth — needed for all jobs (GCS backend)
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - if: matrix.cloud == 'oci'
         name: Configure OCI credentials
@@ -168,12 +172,6 @@ jobs:
           region=${{ matrix.region }}
           key_file=/home/runner/.oci/oci_api_key.pem
           EOF
-
-      - if: matrix.cloud == 'gcp'
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - if: matrix.cloud == 'gcp'
         name: Set GCP env vars

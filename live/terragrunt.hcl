@@ -30,13 +30,14 @@ locals {
 # The bucket must be pre-created (see bootstrap/README.md).
 
 remote_state {
-  backend = "local"
+  backend = "gcs"
   generate = {
     path      = "backend.tf"
     if_exists = "overwrite_terragrunt"
   }
   config = {
-    path = "${get_repo_root()}/.tfstate/${local.state_key}"
+    bucket = "multicloud-tfstate-492119"
+    prefix = local.state_key
   }
 }
 
