@@ -142,15 +142,6 @@ resource "oci_containerengine_cluster" "main" {
     }
   }
 
-  # Enable OIDC for Workload Identity (pod-level IAM — equivalent to EKS IRSA)
-  open_id_connect_token_authentication_config {
-    is_open_id_connect_auth_enabled = true
-  }
-
-  open_id_connect_discovery {
-    is_open_id_connect_discovery_enabled = true
-  }
-
   freeform_tags = local.common_tags
 }
 
