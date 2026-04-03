@@ -89,7 +89,6 @@ jobs:
           echo "OCI_COMPARTMENT_ID=${{ secrets.OCI_COMPARTMENT_ID }}" >> $GITHUB_ENV
           echo "OCI_NAMESPACE=${{ secrets.OCI_NAMESPACE }}" >> $GITHUB_ENV
           echo "OCI_AVAILABILITY_DOMAIN=${{ secrets.OCI_AVAILABILITY_DOMAIN }}" >> $GITHUB_ENV
-          echo "OCI_ARM_IMAGE_ID=${{ secrets.OCI_ARM_IMAGE_ID }}" >> $GITHUB_ENV
           cat > ~/.oci/config <<EOF
           [DEFAULT]
           user=${{ secrets.OCI_USER_OCID }}
@@ -163,7 +162,6 @@ jobs:
           echo "OCI_COMPARTMENT_ID=${{ secrets.OCI_COMPARTMENT_ID }}" >> $GITHUB_ENV
           echo "OCI_NAMESPACE=${{ secrets.OCI_NAMESPACE }}" >> $GITHUB_ENV
           echo "OCI_AVAILABILITY_DOMAIN=${{ secrets.OCI_AVAILABILITY_DOMAIN }}" >> $GITHUB_ENV
-          echo "OCI_ARM_IMAGE_ID=${{ secrets.OCI_ARM_IMAGE_ID }}" >> $GITHUB_ENV
           cat > ~/.oci/config <<EOF
           [DEFAULT]
           user=${{ secrets.OCI_USER_OCID }}

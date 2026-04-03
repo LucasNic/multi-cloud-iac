@@ -145,6 +145,22 @@ resource "oci_containerengine_cluster" "main" {
   freeform_tags = local.common_tags
 }
 
+# --- Node Image: auto-select latest OKE-compatible ARM image ---
+#
+# Queries the cluster's supported image list and picks the most recent
+# aarch64 (ARM) Oracle Linux image. Avoids hardcoding image OCIDs,
+# which become invalid on Kubernetes version upgrades.
+
+data "oci_containerengine_node_pool_option" "main" {
+  node_pool_option_id = oci_containerengine_cluster.main.id
+  compartment_id      = var.compartment_id
+}
+
+locals {
+  arm_images    = [for s in data.oci_containerengine_node_pool_option.main.sources : s if length(regexall("aarch64", s.source_name)) > 0]
+  node_image_id = local.arm_images[0].image_id
+}
+
 # --- Node Pool: ARM A1 Flex (OCI Always Free) ---
 #
 # ARM A1 Flex free tier: 4 OCPU + 24GB RAM total per tenancy.
@@ -165,7 +181,7 @@ resource "oci_containerengine_node_pool" "main" {
   }
 
   node_source_details {
-    image_id    = var.node_image_id
+    image_id    = local.node_image_id
     source_type = "IMAGE"
 
     boot_volume_size_in_gbs = 50
@@ -235,11 +251,6 @@ variable "kubernetes_version" {
 
 variable "availability_domain" {
   description = "OCI availability domain name"
-  type        = string
-}
-
-variable "node_image_id" {
-  description = "OCI image OCID for ARM A1 nodes (Oracle Linux or Ubuntu ARM)"
   type        = string
 }
 

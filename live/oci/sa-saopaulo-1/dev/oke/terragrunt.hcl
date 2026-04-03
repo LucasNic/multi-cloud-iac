@@ -7,9 +7,8 @@ terraform {
 }
 
 inputs = {
-  compartment_id      = get_env("OCI_COMPARTMENT_ID")
-  availability_domain = get_env("OCI_AVAILABILITY_DOMAIN")
-  node_image_id       = get_env("OCI_ARM_IMAGE_ID")  # Oracle Linux 8 ARM image OCID
+  compartment_id           = get_env("OCI_COMPARTMENT_ID")
+  availability_domain      = get_env("OCI_AVAILABILITY_DOMAIN")
   object_storage_namespace = get_env("OCI_NAMESPACE")
 
   # ARM A1 free tier: 1 node with all 4 OCPU + 24GB
