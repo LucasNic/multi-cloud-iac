@@ -21,15 +21,6 @@
 # This trade-off is acceptable for a portfolio workload at R$0/month cost.
 ###############################################################################
 
-terraform {
-  required_providers {
-    cloudflare = {
-      source  = "cloudflare/cloudflare"
-      version = "~> 4.0"
-    }
-  }
-}
-
 # --- DNS Zone ---
 
 data "cloudflare_zone" "main" {
@@ -43,7 +34,7 @@ resource "cloudflare_record" "api_primary" {
   zone_id = data.cloudflare_zone.main.id
   name    = "api"
   type    = "A"
-  value   = var.oke_ingress_ip
+  content = var.oke_ingress_ip
   proxied = true  # Cloudflare proxy: DDoS protection + hides origin
   ttl     = 1     # TTL=1 means "automatic" when proxied
   comment = "OKE primary ingress — managed by Terraform"
@@ -54,7 +45,7 @@ resource "cloudflare_record" "oke_health" {
   zone_id = data.cloudflare_zone.main.id
   name    = "oke-health"
   type    = "A"
-  value   = var.oke_ingress_ip
+  content = var.oke_ingress_ip
   proxied = false
   ttl     = 60
   comment = "OKE direct health check endpoint — not proxied"
@@ -64,7 +55,7 @@ resource "cloudflare_record" "gke_health" {
   zone_id = data.cloudflare_zone.main.id
   name    = "gke-health"
   type    = "A"
-  value   = var.gke_ingress_ip
+  content = var.gke_ingress_ip
   proxied = false
   ttl     = 60
   comment = "GKE direct health check endpoint — not proxied"
@@ -75,7 +66,7 @@ resource "cloudflare_record" "root" {
   zone_id = data.cloudflare_zone.main.id
   name    = "@"
   type    = "A"
-  value   = var.oke_ingress_ip
+  content = var.oke_ingress_ip
   proxied = true
   ttl     = 1
   comment = "Root domain — primary cluster"

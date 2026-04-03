@@ -12,15 +12,6 @@
 # Identity: Workload Identity Federation (pod-level, equivalent to EKS IRSA)
 ###############################################################################
 
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 5.0"
-    }
-  }
-}
-
 # --- GKE Cluster ---
 
 resource "google_container_cluster" "main" {

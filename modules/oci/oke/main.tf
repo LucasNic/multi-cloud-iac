@@ -181,7 +181,7 @@ resource "oci_containerengine_node_pool" "main" {
 
     node_pool_pod_network_option_details {
       cni_type          = "OCI_VCN_IP_NATIVE"
-      subnet_ids        = [oci_core_subnet.nodes.id]
+      pod_subnet_ids    = [oci_core_subnet.nodes.id]
       max_pods_per_node = 31
     }
   }
@@ -277,7 +277,7 @@ output "cluster_name" {
 }
 
 output "cluster_endpoint" {
-  value = oci_containerengine_cluster.main.endpoints[0].public_endpoint
+  value = split(":", oci_containerengine_cluster.main.endpoints[0].public_endpoint)[0]
 }
 
 output "oidc_discovery_endpoint" {
