@@ -8,5 +8,5 @@ terraform {
 
 inputs = {
   gcp_project_id = get_env("GCP_PROJECT_ID")
-  github_repo    = "lucasnicoloso/multi-cloud-portfolio"
+  github_repo    = "LucasNic/multi-cloud-resilience-platform"
 }
