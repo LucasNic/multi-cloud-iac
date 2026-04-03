@@ -11,10 +11,9 @@ inputs = {
   availability_domain      = get_env("OCI_AVAILABILITY_DOMAIN")
   object_storage_namespace = get_env("OCI_NAMESPACE")
 
-  # ARM A1 free tier: 2 nodes × 2 OCPU + 12GB = 4 OCPU / 24GB total
-  # Split across 2 nodes to increase chance of capacity allocation
-  # (OCI "Out of host capacity" is per-instance, not per-tenancy)
-  node_count     = 2
-  node_ocpus     = 2
-  node_memory_gb = 12
+  # ARM A1 free tier: 1 node × 4 OCPU + 24GB = 4 OCPU / 24GB total
+  # Single node reduces capacity allocation failures ("Out of host capacity")
+  node_count     = 1
+  node_ocpus     = 4
+  node_memory_gb = 24
 }
