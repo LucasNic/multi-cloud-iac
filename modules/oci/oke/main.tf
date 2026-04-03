@@ -230,7 +230,7 @@ variable "environment" {
 variable "kubernetes_version" {
   description = "Kubernetes version for OKE"
   type        = string
-  default     = "v1.29.1"
+  default     = "v1.32.1"
 }
 
 variable "availability_domain" {

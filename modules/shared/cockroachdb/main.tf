@@ -15,15 +15,6 @@
 # Provider: https://registry.terraform.io/providers/cockroachdb/cockroach
 ###############################################################################
 
-terraform {
-  required_providers {
-    cockroach = {
-      source  = "cockroachdb/cockroach"
-      version = "~> 1.0"
-    }
-  }
-}
-
 # --- Serverless Cluster ---
 
 resource "cockroach_cluster" "main" {
@@ -34,7 +25,7 @@ resource "cockroach_cluster" "main" {
     spend_limit = 0  # $0 spend limit = stay within free tier always
   }
 
-  regions = var.cockroach_regions
+  regions = [{ name = var.cockroach_region }]
 }
 
 # --- Database ---
@@ -60,11 +51,10 @@ variable "environment" {
   default = "dev"
 }
 
-variable "cockroach_regions" {
-  description = "CockroachDB regions for multi-region resilience"
-  type        = list(string)
-  # GCP regions chosen for proximity to OCI sa-saopaulo-1 and GKE us-central1
-  default     = ["gcp-us-east1", "gcp-us-central1"]
+variable "cockroach_region" {
+  description = "Primary CockroachDB region"
+  type        = string
+  default     = "us-east1"
 }
 
 variable "db_name" {
