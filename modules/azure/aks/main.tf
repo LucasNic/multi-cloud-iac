@@ -44,15 +44,14 @@ resource "azurerm_kubernetes_cluster" "main" {
     # Spot instances — ~70% cheaper than on-demand
     # Risk: spot nodes can be evicted with 30s notice
     # Mitigated: AKS auto-replaces evicted spot nodes
-    # Acceptable for portfolio — even for primary cluster
-    priority        = var.use_spot ? "Spot" : "Regular"
-    eviction_policy = var.use_spot ? "Delete" : null
-    spot_max_price  = var.use_spot ? -1 : null  # -1 = pay up to on-demand price
+    priority        = "Spot"
+    eviction_policy = "Delete"
+    spot_max_price  = -1  # -1 = pay up to on-demand price
 
     node_labels = {
       environment  = var.environment
       role         = "primary-cluster"
-      "kubernetes.azure.com/scalesetpriority" = var.use_spot ? "spot" : "regular"
+      "kubernetes.azure.com/scalesetpriority" = "spot"
     }
 
     upgrade_settings {
@@ -140,11 +139,6 @@ variable "vm_size" {
 variable "node_count" {
   type    = number
   default = 1
-}
-variable "use_spot" {
-  description = "Use spot instances for cost savings (~70% cheaper)"
-  type        = bool
-  default     = true
 }
 variable "extra_tags" {
   type    = map(string)

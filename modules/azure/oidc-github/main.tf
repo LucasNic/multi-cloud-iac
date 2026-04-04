@@ -37,6 +37,17 @@ resource "azuread_application_federated_identity_credential" "github_main" {
   subject        = "repo:${var.github_repo}:ref:refs/heads/${var.github_branch}"
 }
 
+# Allow environment-scoped jobs (e.g. environment: production in apply jobs)
+resource "azuread_application_federated_identity_credential" "github_environment" {
+  for_each       = toset(var.github_environments)
+  application_id = azuread_application.github_actions.id
+  display_name   = "github-env-${each.key}"
+  description    = "GitHub Actions OIDC — environment: ${each.key}"
+  audiences      = ["api://AzureADTokenExchange"]
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = "repo:${var.github_repo}:environment:${each.key}"
+}
+
 # Also allow PRs to authenticate (for plan-only)
 resource "azuread_application_federated_identity_credential" "github_pr" {
   application_id = azuread_application.github_actions.id
@@ -65,6 +76,12 @@ variable "github_repo" {
 variable "github_branch" {
   type    = string
   default = "main"
+}
+
+variable "github_environments" {
+  description = "GitHub Actions environments that need OIDC access (e.g. [\"production\"])"
+  type        = list(string)
+  default     = []
 }
 
 # --- Outputs ---

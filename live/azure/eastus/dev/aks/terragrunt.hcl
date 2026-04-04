@@ -15,5 +15,4 @@ inputs = {
   resource_group_name = dependency.networking.outputs.resource_group_name
   aks_subnet_id       = dependency.networking.outputs.aks_subnet_id
   node_count          = 1
-  use_spot            = true
 }
