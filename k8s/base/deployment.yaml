@@ -2,7 +2,7 @@
 # Base Kubernetes manifests (Kustomize)
 #
 # These are deployed to BOTH clusters via ArgoCD.
-# Overlays in k8s/overlays/{aws,azure} patch cloud-specific values.
+# Overlays in k8s/overlays/{oci,gcp} patch cloud-specific values.
 ###############################################################################
 ---
 apiVersion: apps/v1
@@ -117,8 +117,8 @@ kind: ServiceAccount
 metadata:
   name: api
   annotations:
-    # AWS: IRSA annotation (patched in overlay)
-    # Azure: Workload Identity annotation (patched in overlay)
+    # OCI: Workload Identity annotation (patched in oci overlay)
+    # GCP: Workload Identity annotation (patched in gcp overlay)
     iam-role: "placeholder"
 ---
 # External-facing health endpoint for Cloudflare Worker health checks
