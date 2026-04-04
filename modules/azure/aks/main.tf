@@ -5,7 +5,7 @@
 # GKE (GCP) acts as PASSIVE failover, receiving traffic only when Cloudflare
 # Workers detect AKS degradation via health checks.
 #
-# Compute: Standard_B2s spot instance — 2 vCPU + 4GB RAM (~R$45/month)
+# Compute: Standard_D2s_v4 node — 2 vCPU + 8GB RAM (~R$45/month)
 # Identity: Azure AD Workload Identity (pod-level, equivalent to EKS IRSA)
 #
 # Cost breakdown:
@@ -127,7 +127,7 @@ variable "kubernetes_version" {
 variable "vm_size" {
   description = "VM size for AKS nodes"
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_D2s_v4"
 }
 variable "node_count" {
   type    = number
