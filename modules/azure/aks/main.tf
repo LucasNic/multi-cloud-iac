@@ -41,13 +41,6 @@ resource "azurerm_kubernetes_cluster" "main" {
     os_sku               = "Ubuntu"
     temporary_name_for_rotation = "temp"
 
-    # Spot instances — ~70% cheaper than on-demand
-    # Risk: spot nodes can be evicted with 30s notice
-    # Mitigated: AKS auto-replaces evicted spot nodes
-    priority        = "Spot"
-    eviction_policy = "Delete"
-    spot_max_price  = -1  # -1 = pay up to on-demand price
-
     node_labels = {
       environment  = var.environment
       role         = "primary-cluster"
@@ -154,7 +147,7 @@ output "cluster_endpoint" {
 }
 output "cluster_public_ip" {
   description = "Public IP of the AKS load balancer (for Cloudflare DNS)"
-  value       = azurerm_kubernetes_cluster.main.network_profile[0].load_balancer_profile[0].effective_outbound_ips[0]
+  value       = tolist(azurerm_kubernetes_cluster.main.network_profile[0].load_balancer_profile[0].effective_outbound_ips)[0]
 }
 output "oidc_issuer_url" {
   description = "OIDC issuer URL for Workload Identity configuration"

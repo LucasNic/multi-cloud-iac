@@ -5,7 +5,6 @@ include "root" {
 # Bootstrap-only module — excluded from CI run-all.
 # Must be applied manually once with az login (requires Azure AD admin privileges).
 # The CI Service Principal (Contributor role) cannot manage Azure AD applications.
-terraform_commands_that_need_locking = []
 skip = true
 
 terraform {
