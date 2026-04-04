@@ -5,7 +5,7 @@
 # GKE (GCP) acts as PASSIVE failover, receiving traffic only when Cloudflare
 # Workers detect AKS degradation via health checks.
 #
-# Compute: Standard_D2s_v4 node — 2 vCPU + 8GB RAM (~R$45/month)
+# Compute: default_node_pool (system, Standard_D2ps_v5) + spot node pool (workloads, Standard_D2ps_v5 spot ~70% cheaper)
 # Identity: Azure AD Workload Identity (pod-level, equivalent to EKS IRSA)
 #
 # Cost breakdown:
@@ -42,9 +42,8 @@ resource "azurerm_kubernetes_cluster" "main" {
     temporary_name_for_rotation = "temp"
 
     node_labels = {
-      environment  = var.environment
-      role         = "primary-cluster"
-      "kubernetes.azure.com/scalesetpriority" = "spot"
+      environment = var.environment
+      role        = "system"
     }
 
     upgrade_settings {
@@ -58,11 +57,6 @@ resource "azurerm_kubernetes_cluster" "main" {
     load_balancer_sku = "standard"
     service_cidr      = "10.1.0.0/16"
     dns_service_ip    = "10.1.0.10"
-  }
-
-  # Logging — use Azure Monitor (no extra cost for basic)
-  oms_agent {
-    log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
   }
 
   # Maintenance window — avoid disruption during business hours (BRT)
@@ -80,14 +74,31 @@ resource "azurerm_kubernetes_cluster" "main" {
   tags = local.common_tags
 }
 
-# --- Log Analytics Workspace (required for AKS monitoring) ---
+# --- Spot Node Pool ---
+# default_node_pool doesn't support spot — spot requires a separate node pool.
+# This pool runs all app workloads; system pods stay on the default (regular) pool.
 
-resource "azurerm_log_analytics_workspace" "main" {
-  name                = "${var.project_prefix}-${var.environment}-logs"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
+resource "azurerm_kubernetes_cluster_node_pool" "spot" {
+  name                  = "spot"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.main.id
+  vm_size               = var.vm_size
+  node_count            = var.node_count
+  vnet_subnet_id        = var.aks_subnet_id
+  os_disk_size_gb       = 30
+  os_disk_type          = "Ephemeral"
+  mode                  = "User"
+
+  priority        = "Spot"
+  eviction_policy = "Delete"
+  spot_max_price  = -1  # pay up to on-demand price
+
+  node_labels = {
+    environment                               = var.environment
+    role                                      = "workload"
+    "kubernetes.azure.com/scalesetpriority"   = "spot"
+  }
+
+  node_taints = ["kubernetes.azure.com/scalesetpriority=spot:NoSchedule"]
 
   tags = local.common_tags
 }
@@ -127,7 +138,7 @@ variable "kubernetes_version" {
 variable "vm_size" {
   description = "VM size for AKS nodes"
   type        = string
-  default     = "Standard_D2s_v4"
+  default     = "Standard_D2ps_v5"
 }
 variable "node_count" {
   type    = number
