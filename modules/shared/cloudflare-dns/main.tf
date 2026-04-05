@@ -61,7 +61,7 @@ resource "cloudflare_record" "aks_health" {
   zone_id = data.cloudflare_zone.main.id
   name    = "aks-health"
   type    = "A"
-  content = var.aks_ingress_ip
+  content = local.app_ip
   proxied = false
   ttl     = 60
   comment = "AKS direct health check endpoint — not proxied"
@@ -118,13 +118,13 @@ resource "cloudflare_worker_script" "failover" {
   }
 
   plain_text_binding {
-    name = "RECORD_NAME"
-    text = "api"
+    name = "RECORD_NAMES"
+    text = "api,app"
   }
 
   plain_text_binding {
     name = "AKS_IP"
-    text = var.aks_ingress_ip
+    text = local.app_ip
   }
 
   plain_text_binding {
@@ -143,7 +143,7 @@ resource "cloudflare_worker_script" "failover" {
   }
 
   secret_text_binding {
-    name = "CF_API_TAKSN"
+    name = "CF_API_TOKEN"
     text = var.cloudflare_api_token
   }
 

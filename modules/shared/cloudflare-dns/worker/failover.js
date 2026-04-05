@@ -95,7 +95,9 @@ async function runFailoverCheck(env) {
   const state = await loadState(env);
   console.log(`[failover] current_target=${state.current_target} failure_count=${state.failure_count}`);
 
-  const aksHealthy = await checkHealth(env.AKS_HEALTH_HOST, env.HEALTH_PATH);
+  // Health checks use the non-proxied DNS records (aks-health / gke-health)
+  // with the app hostname as Host header so nginx routes to the API service.
+  const aksHealthy = await checkHealth(`http://${env.AKS_IP}${env.HEALTH_PATH}`, "app.lucasnicoloso.com");
   console.log(`[failover] AKS health check: ${aksHealthy ? "PASS" : "FAIL"}`);
 
   if (aksHealthy) {
@@ -120,7 +122,7 @@ async function runFailoverCheck(env) {
   console.log(`[failover] AKS failure ${newCount}/${threshold}`);
 
   if (newCount >= threshold && state.current_target === "aks") {
-    const gkeHealthy = await checkHealth(env.GKE_HEALTH_HOST, env.HEALTH_PATH);
+    const gkeHealthy = await checkHealth(`http://${env.GKE_IP}${env.HEALTH_PATH}`, "app.lucasnicoloso.com");
     if (!gkeHealthy) {
       console.warn("[failover] GKE also unhealthy — not failing over.");
       await saveState(env, { ...state, failure_count: newCount });
@@ -139,62 +141,68 @@ async function runFailoverCheck(env) {
   }
 }
 
-async function checkHealth(host, path) {
+async function checkHealth(url, hostHeader) {
   try {
-    const url = `http://${host}${path}`;
     const response = await fetch(url, {
       method: "GET",
+      headers: { "Host": hostHeader },
       signal: AbortSignal.timeout(5000),
     });
     return response.status === 200;
   } catch (err) {
-    console.error(`[failover] health check error for ${ip}: ${err.message}`);
+    console.error(`[failover] health check error for ${url}: ${err.message}`);
     return false;
   }
 }
 
 async function updateDnsRecord(env, targetIp) {
-  const listRes = await fetch(
-    `${CLOUDFLARE_API}/zones/${env.ZONE_ID}/dns_records?type=A&name=${env.RECORD_NAME}`,
-    {
-      headers: {
-        Authorization: `Bearer ${env.CF_API_TAKSN}`,
-        "Content-Type": "application/json",
-      },
+  const domain = env.DOMAIN_NAME || "lucasnicoloso.com";
+  const recordNames = (env.RECORD_NAMES || env.RECORD_NAME || "api").split(",");
+
+  for (const name of recordNames) {
+    const fqdn = `${name.trim()}.${domain}`;
+    const listRes = await fetch(
+      `${CLOUDFLARE_API}/zones/${env.ZONE_ID}/dns_records?type=A&name=${fqdn}`,
+      {
+        headers: {
+          Authorization: `Bearer ${env.CF_API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const listData = await listRes.json();
+    if (!listData.success || listData.result.length === 0) {
+      console.error(`[failover] DNS record not found for ${fqdn}`);
+      continue;
     }
-  );
 
-  const listData = await listRes.json();
-  if (!listData.success || listData.result.length === 0) {
-    console.error("[failover] DNS record not found");
-    return;
-  }
+    const recordId = listData.result[0].id;
 
-  const recordId = listData.result[0].id;
+    const updateRes = await fetch(
+      `${CLOUDFLARE_API}/zones/${env.ZONE_ID}/dns_records/${recordId}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${env.CF_API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "A",
+          name: name.trim(),
+          content: targetIp,
+          proxied: true,
+          ttl: 1,
+        }),
+      }
+    );
 
-  const updateRes = await fetch(
-    `${CLOUDFLARE_API}/zones/${env.ZONE_ID}/dns_records/${recordId}`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${env.CF_API_TAKSN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        type: "A",
-        name: env.RECORD_NAME,
-        content: targetIp,
-        proxied: true,
-        ttl: 1,
-      }),
+    const updateData = await updateRes.json();
+    if (updateData.success) {
+      console.log(`[failover] DNS ${fqdn} updated → ${targetIp}`);
+    } else {
+      console.error(`[failover] DNS update failed for ${fqdn}: ${JSON.stringify(updateData.errors)}`);
     }
-  );
-
-  const updateData = await updateRes.json();
-  if (updateData.success) {
-    console.log(`[failover] DNS updated → ${targetIp}`);
-  } else {
-    console.error(`[failover] DNS update failed: ${JSON.stringify(updateData.errors)}`);
   }
 }
 
