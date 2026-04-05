@@ -2,12 +2,13 @@ name: "Multi-Cloud CI/CD"
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    paths: ["modules/**", "live/**", "k8s/**"]
-  push:
-    branches: [main]
-    paths: ["modules/**", "live/**", "k8s/**"]
+  # push/PR triggers disabled during local apply session — re-enable after infra is stable
+  # pull_request:
+  #   branches: [main]
+  #   paths: ["modules/**", "live/**", "k8s/**"]
+  # push:
+  #   branches: [main]
+  #   paths: ["modules/**", "live/**", "k8s/**"]
 
 permissions:
   id-token: write

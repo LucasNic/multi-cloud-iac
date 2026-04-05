@@ -60,7 +60,7 @@ resource "google_container_cluster" "main" {
     recurring_window {
       start_time = "2024-01-01T03:00:00Z"  # 00:00 BRT
       end_time   = "2024-01-01T07:00:00Z"  # 04:00 BRT
-      recurrence = "FREQ=WEEKLY;BYDAY=SA,SU"
+      recurrence = "FREQ=DAILY"
     }
   }
 
