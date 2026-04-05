@@ -29,7 +29,7 @@ spec:
       serviceAccountName: api
       containers:
         - name: api
-          image: ghcr.io/lucasnic/backend:e22cf1e
+          image: ghcr.io/lucasnic/backend:38ea347
           ports:
             - name: http
               containerPort: 8080
