@@ -29,15 +29,31 @@ data "cloudflare_zone" "main" {
 
 # --- DNS Records ---
 
-# Primary record: AKS ingress IP (Cloudflare proxied — hides origin IP)
+# api.lucasnicoloso.com — managed by Worker failover (switches between AKS/GKE)
 resource "cloudflare_record" "api_primary" {
   zone_id = data.cloudflare_zone.main.id
   name    = "api"
   type    = "A"
-  content = var.aks_ingress_ip
-  proxied = true  # Cloudflare proxy: DDoS protection + hides origin
-  ttl     = 1     # TTL=1 means "automatic" when proxied
-  comment = "AKS primary ingress — managed by Terraform"
+  content = local.app_ip
+  proxied = true
+  ttl     = 1
+  comment = "AKS primary ingress — managed by Terraform, updated by Worker on failover"
+}
+
+# app.lucasnicoloso.com — frontend + backend served from AKS ingress
+resource "cloudflare_record" "app" {
+  zone_id = data.cloudflare_zone.main.id
+  name    = "app"
+  type    = "A"
+  content = local.app_ip
+  proxied = true
+  ttl     = 1
+  comment = "App subdomain — AKS nginx ingress"
+}
+
+locals {
+  # Use explicit app_ingress_ip if provided, otherwise fall back to aks_ingress_ip
+  app_ip = var.app_ingress_ip != "" ? var.app_ingress_ip : var.aks_ingress_ip
 }
 
 # Health endpoint records (not proxied — direct for Worker health checks)
@@ -61,15 +77,16 @@ resource "cloudflare_record" "gke_health" {
   comment = "GKE direct health check endpoint — not proxied"
 }
 
-# Root domain → frontend (served from primary cluster)
+# Root domain → portfolio site on Cloudflare Pages (CNAME flattening at root)
 resource "cloudflare_record" "root" {
-  zone_id = data.cloudflare_zone.main.id
-  name    = "@"
-  type    = "A"
-  content = var.aks_ingress_ip
-  proxied = true
-  ttl     = 1
-  comment = "Root domain — primary cluster"
+  zone_id         = data.cloudflare_zone.main.id
+  name            = "@"
+  type            = "CNAME"
+  content         = var.root_cname_target
+  proxied         = true
+  ttl             = 1
+  allow_overwrite = true
+  comment         = "Root domain — portfolio on Cloudflare Pages"
 }
 
 # --- KV Namespace: stores failover state between Worker executions ---
@@ -194,6 +211,18 @@ variable "worker_secret" {
   description = "Bearer token to authenticate HTTP POST /trigger calls to the Worker"
   type        = string
   sensitive   = true
+}
+
+variable "root_cname_target" {
+  description = "CNAME target for the root domain (e.g. Cloudflare Pages subdomain)"
+  type        = string
+  default     = "lucasnicoloso-com.pages.dev"
+}
+
+variable "app_ingress_ip" {
+  description = "Ingress IP for app.lucasnicoloso.com (actual nginx LoadBalancer IP)"
+  type        = string
+  default     = ""
 }
 
 # --- Outputs ---

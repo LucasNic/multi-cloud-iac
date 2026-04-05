@@ -29,6 +29,10 @@ inputs = {
   domain_name           = "lucasnicoloso.com"
   aks_ingress_ip        = dependency.azure_networking.outputs.aks_ingress_ip
   gke_ingress_ip        = dependency.gcp_networking.outputs.gke_ingress_ip
+  # Actual nginx LoadBalancer IP (dynamic — AKS static IP is in wrong RG)
+  app_ingress_ip        = "20.72.144.57"
+  # Root domain points to portfolio on Cloudflare Pages
+  root_cname_target     = "lucasnicoloso-com.pages.dev"
   failure_threshold     = 3
   worker_secret         = get_env("WORKER_SECRET")
 }
