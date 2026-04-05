@@ -88,6 +88,7 @@ resource "cloudflare_worker_script" "failover" {
   account_id = var.cloudflare_account_id
   name       = "${var.project_prefix}-failover-worker"
   content    = file("${path.module}/worker/failover.js")
+  module     = true
 
   kv_namespace_binding {
     name         = "FAILOVER_STATE"
