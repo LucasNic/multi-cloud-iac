@@ -4,10 +4,12 @@ kind: Kustomization
 resources:
   - ../../base
 
-commonLabels:
-  cluster-role: primary
-  cloud: azure
+labels:
+  - pairs:
+      cluster-role: primary
+      cloud: azure
+    includeSelectors: false
+    includeTemplates: true
 
 patches:
-  - path: ingress-patch.yaml
   - path: serviceaccount-patch.yaml

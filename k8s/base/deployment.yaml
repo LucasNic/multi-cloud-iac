@@ -45,6 +45,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.labels['cluster-role']
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "otel-collector:4317"
           # ---------------------------------------------------------------
           # Health Endpoints — CRITICAL for Cloudflare Worker failover
           #
@@ -120,23 +122,3 @@ metadata:
     # Azure: Workload Identity annotation (patched in azure overlay)
     # GCP: Workload Identity annotation (patched in gcp overlay)
     iam-role: "placeholder"
----
-# External-facing health endpoint for Cloudflare Worker health checks
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: api-healthz
-  annotations:
-    # Patched per-cloud in overlays (oci: nginx, gcp: gce)
-    kubernetes.io/ingress.class: "placeholder"
-spec:
-  rules:
-    - http:
-        paths:
-          - path: /healthz
-            pathType: Exact
-            backend:
-              service:
-                name: api
-                port:
-                  name: http
