@@ -95,7 +95,7 @@ async function runFailoverCheck(env) {
   const state = await loadState(env);
   console.log(`[failover] current_target=${state.current_target} failure_count=${state.failure_count}`);
 
-  const aksHealthy = await checkHealth(env.AKS_IP, env.HEALTH_PATH);
+  const aksHealthy = await checkHealth(env.AKS_HEALTH_HOST, env.HEALTH_PATH);
   console.log(`[failover] AKS health check: ${aksHealthy ? "PASS" : "FAIL"}`);
 
   if (aksHealthy) {
@@ -120,7 +120,7 @@ async function runFailoverCheck(env) {
   console.log(`[failover] AKS failure ${newCount}/${threshold}`);
 
   if (newCount >= threshold && state.current_target === "aks") {
-    const gkeHealthy = await checkHealth(env.GKE_IP, env.HEALTH_PATH);
+    const gkeHealthy = await checkHealth(env.GKE_HEALTH_HOST, env.HEALTH_PATH);
     if (!gkeHealthy) {
       console.warn("[failover] GKE also unhealthy — not failing over.");
       await saveState(env, { ...state, failure_count: newCount });
@@ -139,9 +139,9 @@ async function runFailoverCheck(env) {
   }
 }
 
-async function checkHealth(ip, path) {
+async function checkHealth(host, path) {
   try {
-    const url = `https://${ip}${path}`;
+    const url = `http://${host}${path}`;
     const response = await fetch(url, {
       method: "GET",
       signal: AbortSignal.timeout(5000),
