@@ -27,6 +27,7 @@ data:
         endpoint: trace-streamer:4317
         tls:
           insecure: true
+        compression: none
       debug:
         verbosity: basic
 
