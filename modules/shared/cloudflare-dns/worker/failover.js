@@ -125,11 +125,15 @@ async function runFailoverCheck(env, opts = {}) {
   console.log(`[failover] AKS failure ${newCount}/${threshold}`);
 
   if ((opts.instant || newCount >= threshold) && state.current_target === "aks") {
-    const gkeHealthy = await checkHealth(`https://gke-health.${domain}${env.HEALTH_PATH}`, `app.${domain}`);
-    if (!gkeHealthy) {
-      console.warn("[failover] GKE also unhealthy — not failing over.");
-      await saveState(env, { ...state, failure_count: newCount });
-      return;
+    if (!opts.instant) {
+      const gkeHealthy = await checkHealth(`https://gke-health.${domain}${env.HEALTH_PATH}`, `app.${domain}`);
+      if (!gkeHealthy) {
+        console.warn("[failover] GKE also unhealthy — not failing over.");
+        await saveState(env, { ...state, failure_count: newCount });
+        return;
+      }
+    } else {
+      console.log("[failover] Instant trigger — skipping GKE health check");
     }
 
     console.log("[failover] FAILOVER TRIGGERED: AKS → GKE");
