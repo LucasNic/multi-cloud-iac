@@ -71,6 +71,30 @@ resource "google_compute_firewall" "allow_health_checks" {
   target_tags   = ["gke-node"]
 }
 
+# --- Cloud NAT: allows private GKE nodes to reach the internet ---
+# Required for pulling container images from GHCR, Docker Hub, etc.
+
+resource "google_compute_router" "main" {
+  name    = "${var.project_prefix}-${var.environment}-router"
+  region  = var.region
+  network = google_compute_network.main.id
+  project = var.gcp_project_id
+}
+
+resource "google_compute_router_nat" "main" {
+  name                               = "${var.project_prefix}-${var.environment}-nat"
+  router                             = google_compute_router.main.name
+  region                             = var.region
+  project                            = var.gcp_project_id
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+
+  log_config {
+    enable = false
+    filter = "ERRORS_ONLY"
+  }
+}
+
 # --- Variables ---
 
 variable "project_prefix" { type = string }
