@@ -47,6 +47,10 @@ spec:
                   fieldPath: metadata.labels['cluster-role']
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "otel-collector:4317"
+            - name: CLOUD_PROVIDER
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['cloud']
           # ---------------------------------------------------------------
           # Health Endpoints — CRITICAL for Cloudflare Worker failover
           #
