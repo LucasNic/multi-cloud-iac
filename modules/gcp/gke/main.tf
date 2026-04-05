@@ -15,9 +15,10 @@
 # --- GKE Cluster ---
 
 resource "google_container_cluster" "main" {
-  name     = "${var.project_prefix}-${var.environment}-gke"
-  location = var.zone  # Zonal cluster = free control plane
-  project  = var.gcp_project_id
+  name             = "${var.project_prefix}-${var.environment}-gke"
+  location         = var.zone  # Zonal cluster = free control plane
+  project          = var.gcp_project_id
+  min_master_version = var.kubernetes_version
 
   # Remove default node pool — we create a managed one below
   remove_default_node_pool = true
@@ -83,7 +84,8 @@ resource "google_container_node_pool" "main" {
 
   node_config {
     machine_type = "e2-small"
-    spot         = true  # Spot VMs: ~80% cheaper than on-demand, replaces deprecated preemptible
+    # spot = true requires PREEMPTIBLE_CPUS quota — quota is 0 on free accounts.
+    # Using on-demand e2-small (~R$20/month) for the passive failover cluster.
 
     disk_size_gb = 30
     disk_type    = "pd-standard"
@@ -152,6 +154,11 @@ variable "node_count" {
   description = "Number of nodes (1 is sufficient for passive failover)"
   type        = number
   default     = 1
+}
+variable "kubernetes_version" {
+  description = "GKE master version — use gcloud container get-server-config to list valid versions"
+  type        = string
+  default     = "1.32"
 }
 variable "extra_labels" {
   type    = map(string)

@@ -19,6 +19,44 @@ env:
   TG_VERSION: "0.55.0"
 
 jobs:
+  preflight:
+    name: "Preflight Checks"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Azure — check VM SKU availability and quota
+        run: |
+          echo "=== Azure VM SKU: Standard_D2ds_v4 in eastus ==="
+          az vm list-skus --location eastus --query "[?name=='Standard_D2ds_v4'].{name:name,restrictions:restrictions}" -o table
+          echo ""
+          echo "=== Azure vCPU quota (DDSv4 family) ==="
+          az vm list-usage --location eastus --query "[?contains(name.value,'DDSv4')].{name:name.localizedValue,current:currentValue,limit:limit}" -o table
+          echo ""
+          echo "=== Azure AKS supported k8s versions ==="
+          az aks get-versions --location eastus --query "values[?isPreview==null].version" -o tsv | sort -V | tail -5
+
+      - name: GCP — check machine type availability and quota
+        run: |
+          PROJECT=${{ secrets.GCP_PROJECT_ID }}
+          echo "=== GCP machine type: e2-small in us-central1-a ==="
+          gcloud compute machine-types describe e2-small --zone=us-central1-a --project=$PROJECT --format="value(name,guestCpus,memoryMb)"
+          echo ""
+          echo "=== GCP CPU quota in us-central1 ==="
+          gcloud compute regions describe us-central1 --project=$PROJECT --format="value(quotas)" | grep -E "E2_CPUS|CPUS" | head -5
+          echo ""
+          echo "=== GKE supported versions ==="
+          gcloud container get-server-config --region=us-central1 --project=$PROJECT --format="value(defaultClusterVersion)"
+
   lint-and-security:
     name: "Quality Gates"
     runs-on: ubuntu-latest
