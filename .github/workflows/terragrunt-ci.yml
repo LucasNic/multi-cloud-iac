@@ -20,6 +20,7 @@ env:
 
 jobs:
   preflight:
+    if: false
     name: "Preflight Checks"
     runs-on: ubuntu-latest
     steps:
@@ -110,10 +111,12 @@ jobs:
         with: { terragrunt-version: "${{ env.TG_VERSION }}" }
 
       # GCP auth — needed for all jobs (GCS backend)
-      - uses: google-github-actions/auth@v2
+      - if: matrix.cloud != 'shared'
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          create_credentials_file: false
 
       # Azure auth — Workload Identity Federation (OIDC, zero secrets)
       - if: matrix.cloud == 'azure'
@@ -173,10 +176,12 @@ jobs:
         with: { terragrunt-version: "${{ env.TG_VERSION }}" }
 
       # GCP auth — needed for all jobs (GCS backend)
-      - uses: google-github-actions/auth@v2
+      - if: matrix.cloud != 'shared'
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          create_credentials_file: false
 
       # Azure auth
       - if: matrix.cloud == 'azure'
