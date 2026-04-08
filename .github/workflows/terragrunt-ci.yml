@@ -95,10 +95,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - cloud: azure
-            region: eastus
-          - cloud: gcp
-            region: us-central1
           - cloud: shared
             region: global
     steps:
@@ -160,10 +156,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - cloud: azure
-            region: eastus
-          - cloud: gcp
-            region: us-central1
           - cloud: shared
             region: global
     steps:
