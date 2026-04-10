@@ -108,6 +108,18 @@ resource "cloudflare_record" "mcs" {
   comment         = "Multi-Cloud Simulation — Cloudflare Pages deployment"
 }
 
+# Deployment Simulation subdomain → Cloudflare Pages
+resource "cloudflare_record" "ds" {
+  zone_id         = data.cloudflare_zone.main.id
+  name            = "ds"
+  type            = "CNAME"
+  content         = "deployment-simulation.pages.dev"
+  proxied         = true
+  ttl             = 1
+  allow_overwrite = true
+  comment         = "Deployment Simulation — Cloudflare Pages deployment"
+}
+
 # --- KV Namespace: stores failover state between Worker executions ---
 #
 # The Worker writes to KV: { current_target: "aks" | "gke", failure_count: N }

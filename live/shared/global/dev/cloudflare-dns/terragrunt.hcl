@@ -12,6 +12,20 @@ include "root" {
 
 terraform {
   source = "../../../../../modules/shared/cloudflare-dns"
+
+  extra_arguments "reconfigure" {
+    commands = ["init"]
+    arguments = ["-reconfigure"]
+  }
+}
+
+remote_state {
+  backend = "local"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {}
 }
 
 inputs = {
